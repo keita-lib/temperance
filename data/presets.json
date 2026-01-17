@@ -1,0 +1,28 @@
+[
+  { "id": "food_gyudon", "category": "food", "label": "牛丼ランチ", "amount": 750 },
+  { "id": "food_lunch", "category": "food", "label": "外食ランチ", "amount": 1200 },
+  { "id": "food_delivery", "category": "food", "label": "デリバリー", "amount": 2000 },
+
+  { "id": "beverage_coffee", "category": "beverage", "label": "カフェラテ", "amount": 520 },
+  { "id": "beverage_soda", "category": "beverage", "label": "炭酸ドリンク", "amount": 180 },
+  { "id": "beverage_boba", "category": "beverage", "label": "タピオカ", "amount": 650 },
+
+  { "id": "work_taxi", "category": "work", "label": "タクシー", "amount": 2100 },
+  { "id": "work_snack", "category": "work", "label": "オフィスお菓子", "amount": 480 },
+  { "id": "work_gadget", "category": "work", "label": "ガジェット衝動買い", "amount": 6800 },
+
+  { "id": "shopping_fast", "category": "shopping", "label": "ファストファッション", "amount": 3200 },
+  { "id": "shopping_cosme", "category": "shopping", "label": "コスメ1点", "amount": 2600 },
+  { "id": "shopping_gacha", "category": "shopping", "label": "ガチャ/くじ", "amount": 500 },
+
+  { "id": "alcohol_beer", "category": "alcohol", "label": "ビール1本", "amount": 220 },
+  { "id": "alcohol_party", "category": "alcohol", "label": "飲み会", "amount": 5000 },
+
+  { "id": "gamble_pachi", "category": "gamble", "label": "パチンコ", "amount": 10000 },
+  { "id": "gamble_horse", "category": "gamble", "label": "競馬", "amount": 5000 },
+  { "id": "gamble_lottery", "category": "gamble", "label": "宝くじ", "amount": 300 },
+
+  { "id": "other_magazine", "category": "other", "label": "雑誌", "amount": 800 },
+  { "id": "other_manga", "category": "other", "label": "マンガ本", "amount": 550 },
+  { "id": "other_smoke", "category": "other", "label": "タバコ", "amount": 600 }
+]
