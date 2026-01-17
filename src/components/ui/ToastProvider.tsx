@@ -32,7 +32,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastPayload[]>([]);
 
   const push = useCallback((toast: ToastPayload) => {
-    const id = crypto.randomUUID();
+    const cryptoRef = typeof globalThis !== "undefined" ? globalThis.crypto : undefined;
+    const id = cryptoRef?.randomUUID
+      ? cryptoRef.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}`;
     setToasts((current) => [...current, { ...toast, id }]);
   }, []);
 

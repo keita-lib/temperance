@@ -1,63 +1,56 @@
-
-# temperance
-節制利益を積み重ねるアプリ
-
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-
 # Temperance
->>>>>>> 0f56916 (feat: initial Temperance MVP)
 
-Temperance is a local-first Next.js PWA that lets you capture "節制利益" (money you chose not to spend) in the moment, track progress toward a savings goal, and stay motivated with lightweight mentor tips. The app prioritizes sub-second capture on mobile, offline support through IndexedDB (Dexie), and simple JSON backups you can move between devices.
+「節制利益（使うはずだったお金を使わずに済んだ分）」を記録していくローカルファーストのアプリです。スマホでサッと記録できて、目標金額への進み具合や累積グラフをリアルタイムで確認できます。
 
-## Key Features
-- **ホーム**: Shows today's gain, cumulative totals, goal status (達成率・残額・予測到達日), line chart, quick CTA, and low-frequency mentor tips.
-- **獲得**: Category presets grouped by domain plus a free-form form. Tapping logs immediately, offers a small amount editor, allows backdating via日付ピッカー, and shows an Undo toast.
-- **履歴**: Day-grouped log list with totals, delete controls, and a日付編集モーダル to fix past entries.
-- **設定**: Goal amount form, mentor frequency (1-3/day), preset CRUD, auto-add toggle for manual inputs, and JSON backup import/export.
-- **PWA**: Manifest, icons, and a minimal service worker allow Android "ホーム画面に追加" and offline capture.
+## 主な機能
+- **ホーム画面**: 今日の節制利益、累積、目標カード（達成率・残額・予測到達日）、折れ線グラフ、メンターTipsを表示。
+- **獲得画面**: プリセット一覧と自由入力フォーム。ボタン1回で節制利益ログを登録でき、Undoトーストでミスにも対応。
+- **履歴画面**: 日付ごとにログを一覧化し、合計や削除操作ができる。
+- **設定画面**: 目標金額、メンター表示回数、プリセット管理、自由入力の自動登録、バックアップ（JSON）を管理。
+- **PWA対応**: Manifest + Service Worker を用意しており、Androidの「ホーム画面に追加」に対応。IndexedDBでオフラインでも動作。
 
-## Development
+## 使い方（基本コマンド）
 ```bash
-npm install
-npm run dev       # start app on http://localhost:3000
-npm run lint      # ESLint (app router + Tailwind 4)
-npm run build     # production build
+npm install       # 依存パッケージをインストール
+npm run dev       # 開発サーバー (http://localhost:3000)
+npm run lint      # コードチェック
+npm run build     # 本番ビルド
+npm run start     # 本番ビルドの確認
 ```
 
-## Tech Notes
-- **Next.js App Router + React 19** with a small layout shell optimized for max-width 420px.
-- **State & Storage**: Dexie manages gains, presets, mentor metadata, and settings; hooks (`useGainLogs`, `usePresets`, `useSetting`) keep UI live via `dexie-react-hooks`.
-- **Analytics helpers**: `lib/aggregates.ts` computes daily totals, cumulative chart points, progress %, remaining amount, and a 7-day average forecast.
-- **Mentor tips**: `lib/tips.ts` enforces daily limits, randomness, and session handoff so tips can appear right after a gain.
-- **Backup**: `lib/backup.ts` exports/imports JSON, wiping and restoring Dexie tables as needed.
-- **PWA**: `app/manifest.ts` and `public/sw.js` provide the manifest/service worker; `PwaInstaller` registers it in production builds.
+## 技術メモ
+- **Next.js App Router + React 19** を採用。最大幅 420px のモバイルUIを意識。
+- **IndexedDB + Dexie** でローカルデータを管理。`dexie-react-hooks` を使って画面をリアルタイム更新。
+- **lib/aggregates.ts** で今日の合計や累積、7日平均などを計算。
+- **lib/tips.ts** でメンターTipsの出現回数やカテゴリ優先を制御。
+- **lib/backup.ts** でJSONエクスポート/インポートを実装し、端末間のデータ移行をサポート。
+- **効果音**: `/public/audio/coin-chime.mp3` を着地タイミングに再生して、演出と同期。
 
-## Project Structure
+## ディレクトリ例
 ```
-data/                # presets.json, tips.json seeds
-public/icons/        # PWA icons + sw.js
-src/app/             # route files (home/add/history/settings, manifest)
-src/components/      # UI, layout, feature views, providers
-src/hooks/           # Dexie live queries
-src/lib/             # Dexie DB, aggregates, formatters, tips, backup, actions
+temperance/
+├─ app/                # ルート（ホーム/獲得/履歴/設定/manifest）
+├─ data/               # 初期プリセットやメンターTips
+├─ public/             # アイコン、サービスワーカー、効果音
+├─ scripts/            # アイコン生成などのツール
+├─ src/components/     # UI部品・画面ビュー・レイアウト
+├─ src/hooks/          # Dexie用のカスタムHooks
+├─ src/lib/            # DB定義、計算ロジック、フォーマット関数など
+└─ docs/               # 仕様書や開発メモ
 ```
 
-## Backup Format
-`npm run dev` exposes the settings page where you can export a JSON file shaped like:
-```json
-{
-  "version": "0.1",
-  "exportedAt": "2025-02-08T00:00:00.000Z",
-  "gains": [ { "amount": 1200, "label": "外食ランチ", ... } ],
-  "presets": [ { "id": "food_lunch", "label": "外食ランチ", ... } ],
-  "settings": { "goalAmount": 4000000, "mentorFrequency": 1, "mentorMeta": { ... } }
-}
-```
-Importing replaces all Dexie tables and rehydrates defaults if any field is missing.
+## バックアップの扱い
+- 設定画面から「JSONを書き出す」でバックアップファイル（例: `temperance-backup-20260117.json`）をダウンロード。
+- 別の端末で「JSONを読み込む」を選び、ファイルをアップロードすると IndexedDB の中身が置き換わります。
 
-## Deployment
-Deploy to Vercel as a static Next.js app. Ensure `NODE_ENV=production` so the service worker registers, then test:
-1. Visit the app on Android Chrome.
-2. Use "ホーム画面に追加" to pin the PWA.
-3. Toggle airplane mode and confirm that logging from `/add` still updates the home dashboard after redirect.
+## デプロイと確認
+1. Vercel 等にデプロイして、Android Chrome からアクセス。
+2. 「ホーム画面に追加」でアイコンが機能するか確認。
+3. 機内モードでも `/add` → ホームで数値が更新されることを確かめる。
 
+## ドキュメント
+- `docs/SPEC.md`: 仕様書（唯一の正しい情報源）
+- `docs/AGENTS.md`: 開発ルール（やさしい日本語）
+- `docs/dev_history.md`: 開発の流れや Git/GitHub の基本
+
+わからないことがあれば `docs/` フォルダの資料を参照してください。

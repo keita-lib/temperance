@@ -5,6 +5,12 @@ import { createPortal } from "react-dom";
 
 const COIN_COUNT = 18;
 
+function randomId() {
+  const cryptoRef = typeof globalThis !== "undefined" ? globalThis.crypto : undefined;
+  if (cryptoRef?.randomUUID) return cryptoRef.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}`;
+}
+
 export type CoinBurst = {
   id: string;
   coins: Array<{ id: string; delay: number; offset: number; scale: number; duration: number }>;
@@ -12,9 +18,9 @@ export type CoinBurst = {
 
 export function createCoinBurst(): CoinBurst {
   return {
-    id: crypto.randomUUID(),
+    id: randomId(),
     coins: Array.from({ length: COIN_COUNT }).map(() => ({
-      id: crypto.randomUUID(),
+      id: randomId(),
       delay: Math.random() * 0.3,
       offset: (Math.random() - 0.5) * 140,
       scale: 0.8 + Math.random() * 0.5,
