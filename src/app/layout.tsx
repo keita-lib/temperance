@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Providers } from "@/components/Providers";
 import "./globals.css";
 
@@ -6,6 +6,9 @@ export const metadata: Metadata = {
   title: "Temperance | 節制利益トラッカー",
   description: "節制利益を積み上げて目標達成率を可視化するローカルファーストPWA",
   manifest: "/manifest.webmanifest",
+};
+
+export const viewport: Viewport = {
   themeColor: "#0f172a",
 };
 
