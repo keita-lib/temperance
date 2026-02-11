@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useEffectEvent, useMemo, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { TopBar } from "@/components/layout/TopBar";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Card } from "@/components/ui/Card";
@@ -11,11 +13,16 @@ import { computeGoalMetrics, buildCumulativeChartPoints } from "@/lib/aggregates
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
 import { maybePickTip } from "@/lib/tips";
 import { MentorTipRecord } from "@/lib/types";
+import * as htmlToImage from "html-to-image";
 
 export function HomeView() {
   const gains = useGainLogs();
   const goalAmount = useSetting("goalAmount");
   const [tip, setTip] = useState<MentorTipRecord | null>(null);
+  const shareTargetRef = useRef<HTMLDivElement | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const [showQr, setShowQr] = useState(false);
 
   const setTipFromStorage = useEffectEvent(() => {
     if (typeof window === "undefined") return false;
@@ -45,6 +52,107 @@ export function HomeView() {
 
   const chartPoints = useMemo(() => buildCumulativeChartPoints(gains), [gains]);
 
+  const captureShareAsset = useCallback(async () => {
+    const node = shareTargetRef.current;
+    if (!node) throw new Error("Missing share target");
+
+    const pixelRatio = typeof window !== "undefined" ? window.devicePixelRatio || 2 : 2;
+    const blob = await htmlToImage.toBlob(node, {
+      cacheBust: true,
+      pixelRatio,
+      backgroundColor: "#f4f4f5",
+    });
+    if (!blob) throw new Error("Failed to build image");
+    return new File([blob], `temperance-home-${Date.now()}.png`, { type: "image/png" });
+  }, []);
+
+  const shareViaSystem = useCallback(
+    async ({ text, includeImage }: { text?: string; includeImage?: boolean }) => {
+      const nav = typeof navigator !== "undefined" ? navigator : undefined;
+      if (!nav?.share) return false;
+
+      const shareData: ShareData = {};
+      if (text) shareData.text = text;
+
+      if (includeImage) {
+        try {
+          const file = await captureShareAsset();
+          const files = [file];
+          if (typeof nav.canShare === "function" && !nav.canShare({ files })) return false;
+          await nav.share({ ...shareData, files });
+          return true;
+        } catch (error) {
+          console.warn("shareViaSystem image share failed", error);
+          return false;
+        }
+      }
+
+      try {
+        await nav.share(shareData);
+        return true;
+      } catch (error) {
+        console.warn("shareViaSystem failed", error);
+        return false;
+      }
+    },
+    [captureShareAsset],
+  );
+
+  const handleShare = useCallback(
+    async (platform: SharePlatform) => {
+      if (isSharing) return;
+
+      setIsSharing(true);
+      setShareMessage(null);
+
+      try {
+        const shareText = buildShareText(metrics);
+
+        if (platform === "x") {
+          const shared = await shareViaSystem({ text: shareText, includeImage: true });
+          if (shared) {
+            setShareMessage("共有メニューを開きました。Xを選ぶと画像付きで投稿できます。");
+            return;
+          }
+
+          openShareWindow(buildXUrl(shareText));
+          setShareMessage("この端末では共有に対応していません。投稿画面でスクリーンショットを添付してください。");
+          return;
+        }
+
+        if (platform === "facebook") {
+          const shared = await shareViaSystem({ text: shareText, includeImage: true });
+          if (shared) {
+            setShareMessage("共有メニューを開きました。Facebookを選ぶとそのまま投稿できます。");
+            return;
+          }
+
+          openShareWindow(buildFacebookUrl(shareText));
+          setShareMessage("Facebookのシェア画面を開きました。必要に応じてスクリーンショットを添付してください。");
+          return;
+        }
+
+        if (platform === "instagram") {
+          const shared = await shareViaSystem({ text: shareText, includeImage: true });
+          if (shared) {
+            setShareMessage("共有メニューを開きました。Instagramを選んでポストしてください。");
+            return;
+          }
+
+          await tryCopyText(shareText);
+          setShareMessage("この端末では共有に対応していません。ホーム画面をスクリーンショットして Instagram に投稿してください。");
+          return;
+        }
+      } catch (error) {
+        console.error("Failed to share home view", error);
+        setShareMessage("共有に失敗しました。時間をおいて再度お試しください。");
+      } finally {
+        setIsSharing(false);
+      }
+    },
+    [isSharing, metrics, shareViaSystem],
+  );
+
   return (
     <PageContainer>
       <TopBar
@@ -55,25 +163,267 @@ export function HomeView() {
         }
       />
       <main className="flex flex-col gap-4 px-4 pb-8">
-        {!goalAmount ? <GoalReminder /> : null}
-        <StatsRow metrics={metrics} />
-        {goalAmount ? <GoalCard metrics={metrics} goalAmount={goalAmount} /> : null}
-        <Card>
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold">累積グラフ</h2>
-            <span className="text-xs text-zinc-500">日次</span>
-          </div>
-          <LineChart points={chartPoints} />
-        </Card>
-        <Link
-          href="/add"
-          className="mt-2 flex items-center justify-center rounded-3xl bg-emerald-500 py-5 text-base font-semibold text-white shadow-lg shadow-emerald-200"
-        >
-          ＋節制利益を獲得
-        </Link>
-        {tip ? <TipCard tip={tip} onDismiss={() => setTip(null)} /> : null}
+        <ShareCta
+          isSharing={isSharing}
+          onShare={handleShare}
+          helperText={shareMessage}
+          className="pt-1"
+          onToggleQr={() => setShowQr((prev) => !prev)}
+          isQrOpen={showQr}
+        />
+        {showQr ? <QrShareCard onDismiss={() => setShowQr(false)} /> : null}
+        <div ref={shareTargetRef} className="flex flex-col gap-4">
+          {!goalAmount ? <GoalReminder /> : null}
+          <StatsRow metrics={metrics} />
+          {goalAmount ? <GoalCard metrics={metrics} goalAmount={goalAmount} /> : null}
+          <Card>
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold">累積グラフ</h2>
+              <span className="text-xs text-zinc-500">日次</span>
+            </div>
+            <LineChart points={chartPoints} />
+          </Card>
+          <Link
+            href="/add"
+            className="mt-2 flex items-center justify-center rounded-3xl bg-emerald-500 py-5 text-base font-semibold text-white shadow-lg shadow-emerald-200"
+          >
+            ＋節制利益を獲得
+          </Link>
+          {tip ? <TipCard tip={tip} onDismiss={() => setTip(null)} /> : null}
+        </div>
       </main>
     </PageContainer>
+  );
+}
+
+const APP_URL = "https://temperance.app/download";
+
+function buildShareText(metrics: ReturnType<typeof computeGoalMetrics>) {
+  const today = formatCurrency(metrics.today);
+  const total = formatCurrency(metrics.cumulative);
+  return [`節制利益アプリで節制利益獲得中！`, `今日 ${today}`, `累積 ${total}`, APP_URL]
+    .join("\n")
+    .trim();
+}
+
+function buildXUrl(text: string) {
+  const url = new URL("https://twitter.com/intent/tweet");
+  url.searchParams.set("text", `${text}\n#節制利益`);
+  return url.toString();
+}
+
+function buildFacebookUrl(text: string) {
+  const url = new URL("https://www.facebook.com/sharer/sharer.php");
+  url.searchParams.set("u", APP_URL);
+  url.searchParams.set("quote", text);
+  return url.toString();
+}
+
+function openShareWindow(url: string) {
+  if (typeof window === "undefined") return;
+  const win = window.open(url, "_blank", "noopener,noreferrer");
+  if (!win) window.location.href = url;
+}
+
+async function tryCopyText(text: string) {
+  if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // ignore copy failures
+  }
+}
+
+type SharePlatform = "x" | "facebook" | "instagram";
+
+function QrShareCard({ onDismiss }: { onDismiss: () => void }) {
+  const displayUrl = APP_URL.replace(/^https?:\/\//, "");
+  return (
+    <Card className="flex flex-col gap-3 bg-white">
+      <div className="flex items-start justify-between">
+        <p className="text-xs font-semibold text-zinc-500">QRコードで配布</p>
+        <button className="text-xs font-semibold text-emerald-600" onClick={onDismiss}>
+          閉じる
+        </button>
+      </div>
+      <div className="flex items-center gap-4">
+        <div className="flex-1">
+          <p className="text-sm text-zinc-600">
+            別のスマホのカメラで読み取ると Temperance をすぐ開けます。ホーム画面追加やダウンロード案内に使ってください。
+          </p>
+          <a
+            href={APP_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 inline-flex items-center text-sm font-semibold text-emerald-600"
+          >
+            {displayUrl}
+          </a>
+        </div>
+        <div className="shrink-0 rounded-2xl bg-zinc-50 p-2">
+          <QRCodeSVG
+            value={APP_URL}
+            size={110}
+            fgColor="#0f172a"
+            bgColor="#ffffff"
+            level="M"
+            includeMargin
+            aria-label="TemperanceのURL QRコード"
+          />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function ShareCta({
+  isSharing,
+  onShare,
+  helperText,
+  onToggleQr,
+  isQrOpen,
+  className = "",
+}: {
+  isSharing: boolean;
+  onShare: (platform: SharePlatform) => void;
+  helperText: string | null;
+  onToggleQr: () => void;
+  isQrOpen: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={`flex flex-col items-center gap-2 ${className}`}>
+      <div className="grid w-full grid-cols-4 gap-2 text-[11px] font-semibold">
+        <ShareShortcut label="にポスト" accent="bg-black text-white" disabled={isSharing} onClick={() => onShare("x")}>
+          <XIcon className="h-4 w-4" />
+        </ShareShortcut>
+        <ShareShortcut
+          label="Instagram"
+          accent="bg-gradient-to-r from-purple-500 via-rose-500 to-amber-400 text-white"
+          disabled={isSharing}
+          onClick={() => onShare("instagram")}
+        >
+          <InstagramIcon className="h-4 w-4" />
+        </ShareShortcut>
+        <ShareShortcut label="Facebook" accent="bg-blue-600 text-white" disabled={isSharing} onClick={() => onShare("facebook")}>
+          <FacebookIcon className="h-4 w-4" />
+        </ShareShortcut>
+        <ShareShortcut
+          label="広める"
+          accent={
+            isQrOpen
+              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+              : "bg-white text-zinc-900 border border-zinc-200"
+          }
+          disabled={false}
+          onClick={onToggleQr}
+        >
+          <ShareIcon className="h-4 w-4" />
+        </ShareShortcut>
+      </div>
+      {helperText ? <p className="text-center text-xs text-zinc-500">{helperText}</p> : null}
+    </div>
+  );
+}
+
+function ShareShortcut({
+  children,
+  label,
+  accent,
+  disabled,
+  onClick,
+}: {
+  children: ReactNode;
+  label: string;
+  accent: string;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex flex-1 items-center justify-center gap-1 rounded-2xl px-3 py-2 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${accent} ${disabled ? "opacity-60" : ""}`}
+    >
+      {children}
+      {label}
+    </button>
+  );
+}
+
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="m18 6-12 12" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
+function InstagramIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
+      <circle cx="12" cy="12" r="3.3" />
+      <circle cx="17" cy="7" r="0.7" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function FacebookIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M14.5 8H16V4.5h-2a4 4 0 0 0-4 4V11H7v3.5h3v5h3.5v-5h2.5L16 11h-2.5V8z" />
+    </svg>
+  );
+}
+
+function ShareIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="m8.6 11 6.8-4" />
+      <path d="m8.6 13 6.8 4" />
+    </svg>
   );
 }
 

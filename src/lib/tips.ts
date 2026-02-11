@@ -2,6 +2,7 @@
 
 import { db, getSetting, setSetting } from "./db";
 import { MentorTipRecord, SettingMap } from "./types";
+import { MENTOR_FREQUENCY_ALWAYS } from "./mentor";
 
 export type TipContext = "launch" | "gain";
 
@@ -15,8 +16,9 @@ export async function maybePickTip(
   const meta = await getSetting("mentorMeta");
   const today = new Date().toISOString().slice(0, 10);
   const normalizedMeta = normalizeMeta(meta, today);
+  const isAlways = frequency === MENTOR_FREQUENCY_ALWAYS;
 
-  if (normalizedMeta.shownCount >= frequency) {
+  if (!isAlways && normalizedMeta.shownCount >= frequency) {
     if (normalizedMeta !== meta) {
       await setSetting("mentorMeta", normalizedMeta);
     }

@@ -1,0 +1,1 @@
+export const MENTOR_FREQUENCY_ALWAYS = -1;

@@ -2,6 +2,7 @@
 
 import { db, setSetting } from "@/lib/db";
 import { GainCategory, GainLog, PresetRecord } from "@/lib/types";
+import { MENTOR_FREQUENCY_ALWAYS } from "@/lib/mentor";
 
 export interface CreateGainInput {
   amount: number;
@@ -39,7 +40,11 @@ export async function clearGoalAmount() {
   await setSetting("goalAmount", null);
 }
 
-export async function updateMentorFrequency(perDay: number) {
+export async function updateMentorFrequency(perDay: number | "always") {
+  if (perDay === "always") {
+    await setSetting("mentorFrequency", MENTOR_FREQUENCY_ALWAYS);
+    return;
+  }
   const normalized = Math.min(3, Math.max(1, Math.round(perDay)));
   await setSetting("mentorFrequency", normalized);
 }

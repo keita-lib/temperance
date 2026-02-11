@@ -19,6 +19,7 @@ import { GainCategory, PresetRecord } from "@/lib/types";
 import { CATEGORY_LABELS, CATEGORY_ORDER } from "@/lib/categories";
 import { useToast } from "@/components/ui/ToastProvider";
 import { exportBackup, importBackup } from "@/lib/backup";
+import { MENTOR_FREQUENCY_ALWAYS } from "@/lib/mentor";
 
 export function SettingsView() {
   const goalAmount = useSetting("goalAmount");
@@ -117,19 +118,33 @@ export function SettingsView() {
           <Card>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">メンター表示頻度</h2>
-              <span className="text-sm text-zinc-500">{mentorFrequency} 回/日</span>
+              <span className="text-sm text-zinc-500">
+                {mentorFrequency === MENTOR_FREQUENCY_ALWAYS ? "常に" : `${mentorFrequency} 回/日`}
+              </span>
             </div>
             <div className="mt-4 flex gap-2">
-              {[1, 2, 3].map((value) => (
-                <Button
-                  key={value}
-                  variant={mentorFrequency === value ? "primary" : "secondary"}
-                  className="flex-1"
-                  onClick={() => updateMentorFrequency(value)}
-                >
-                  {value}
-                </Button>
-              ))}
+              {[
+                { id: "mentor-1", label: "1", value: 1 as const },
+                { id: "mentor-3", label: "3", value: 3 as const },
+                { id: "mentor-always", label: "常に", value: "always" as const },
+              ].map((option) => {
+                const isAlwaysOption = option.value === "always";
+                const isActive = isAlwaysOption
+                  ? mentorFrequency === MENTOR_FREQUENCY_ALWAYS
+                  : mentorFrequency === option.value;
+                return (
+                  <Button
+                    key={option.id}
+                    variant={isActive ? "primary" : "secondary"}
+                    className="flex-1"
+                    onClick={() =>
+                      updateMentorFrequency(isAlwaysOption ? "always" : option.value)
+                    }
+                  >
+                    {option.label}
+                  </Button>
+                );
+              })}
             </div>
           </Card>
         </section>
