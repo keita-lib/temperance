@@ -14,6 +14,7 @@ import {
 
 const DB_NAME = "temperance";
 const DB_VERSION = 1;
+const TIPS_DATA_VERSION = 2;
 
 export const DEFAULT_SETTINGS: SettingMap = {
   goalAmount: null,
@@ -24,6 +25,7 @@ export const DEFAULT_SETTINGS: SettingMap = {
   },
   lastSelectedDate: null,
   autoPresetFromManual: false,
+  tipsDataVersion: 0,
 };
 
 class TemperanceDatabase extends Dexie {
@@ -45,6 +47,7 @@ class TemperanceDatabase extends Dexie {
       await this.presets.bulkPut(presetsSeed as PresetRecord[]);
       await this.tips.bulkPut(tipsSeed as MentorTipRecord[]);
       await seedDefaultSettings();
+      await setSetting("tipsDataVersion", TIPS_DATA_VERSION);
     });
   }
 }
@@ -74,6 +77,7 @@ export async function ensureSeedData() {
     await db.tips.bulkPut(tipsSeed as MentorTipRecord[]);
   }
   await ensureDefaultSettings();
+  await ensureTipsSeedUpToDate();
 }
 
 export async function ensureDefaultSettings() {
@@ -122,4 +126,17 @@ export async function updateSetting<TKey extends SettingKey>(
 ) {
   const current = await getSetting(key);
   await setSetting(key, updater(current));
+}
+
+async function ensureTipsSeedUpToDate() {
+  const currentVersion = await getSetting("tipsDataVersion");
+  if (currentVersion >= TIPS_DATA_VERSION) return;
+
+  const existing = await db.tips.toArray();
+  const existingIds = new Set(existing.map((tip) => tip.id));
+  const missing = (tipsSeed as MentorTipRecord[]).filter((tip) => !existingIds.has(tip.id));
+  if (missing.length) {
+    await db.tips.bulkPut(missing);
+  }
+  await setSetting("tipsDataVersion", TIPS_DATA_VERSION);
 }

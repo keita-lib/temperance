@@ -21,6 +21,8 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { exportBackup, importBackup } from "@/lib/backup";
 import { MENTOR_FREQUENCY_ALWAYS } from "@/lib/mentor";
 
+const SHARE_PAGE_URL = "https://temperance-six.vercel.app";
+
 export function SettingsView() {
   const goalAmount = useSetting("goalAmount");
   const mentorFrequency = useSetting("mentorFrequency");
@@ -194,6 +196,9 @@ export function SettingsView() {
         <section>
           <Card>
             <h2 className="text-lg font-semibold">バックアップ</h2>
+            <p className="mt-2 text-sm text-zinc-500">
+              JSONファイルにログ・目標・プリセットを含めて書き出し、別の端末で読み込むと完全に復元できます。
+            </p>
             <div className="mt-4 flex flex-col gap-3">
               <Button onClick={handleExport}>JSONを書き出す</Button>
               <label className="flex cursor-pointer flex-col gap-2 rounded-2xl border border-dashed border-zinc-300 px-4 py-6 text-center text-sm text-zinc-500">
@@ -208,6 +213,30 @@ export function SettingsView() {
                   }}
                 />
               </label>
+            </div>
+          </Card>
+        </section>
+        <section>
+          <Card>
+            <h2 className="text-lg font-semibold">アプリを共有する</h2>
+            <p className="mt-2 text-sm text-zinc-500">
+              ホーム画面の共有ボタンからSNSにシェアできます。紹介ページへのQRコードも用意しているので、Temperance を試してほしい相手にURLを送るときは下記を使ってください。
+            </p>
+            <div className="mt-4 flex flex-col gap-2">
+              <Link
+                href="/"
+                className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-800"
+              >
+                ホームの共有ボタンへ移動
+              </Link>
+              <a
+                href={SHARE_PAGE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white"
+              >
+                紹介ページ（temperance-six.vercel.app）
+              </a>
             </div>
           </Card>
         </section>

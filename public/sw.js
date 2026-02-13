@@ -1,11 +1,10 @@
-const CACHE_NAME = "temperance-cache-v1";
+const CACHE_NAME = "temperance-cache-v2";
 const OFFLINE_URLS = ["/", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(OFFLINE_URLS)),
   );
-  self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
@@ -25,16 +24,41 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          return response;
-        })
-        .catch(() => caches.match("/"));
-    }),
-  );
+  // Always try network first for navigations to avoid stale HTML
+  if (request.mode === "navigate") {
+    event.respondWith(networkFirst(request));
+    return;
+  }
+
+  event.respondWith(cacheFirst(request));
 });
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
+async function networkFirst(request) {
+  try {
+    const response = await fetch(request);
+    const copy = response.clone();
+    const cache = await caches.open(CACHE_NAME);
+    cache.put(request, copy);
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    return caches.match("/");
+  }
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  const copy = response.clone();
+  const cache = await caches.open(CACHE_NAME);
+  cache.put(request, copy);
+  return response;
+}

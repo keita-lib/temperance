@@ -44,6 +44,7 @@ export interface SettingMap {
   mentorMeta: MentorMeta;
   lastSelectedDate: string | null;
   autoPresetFromManual: boolean;
+  tipsDataVersion: number;
 }
 
 export type SettingKey = keyof SettingMap;

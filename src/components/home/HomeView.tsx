@@ -22,6 +22,7 @@ export function HomeView() {
   const shareTargetRef = useRef<HTMLDivElement | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const [fallbackShare, setFallbackShare] = useState<FallbackState | null>(null);
   const [showQr, setShowQr] = useState(false);
 
   const setTipFromStorage = useEffectEvent(() => {
@@ -115,8 +116,10 @@ export function HomeView() {
             return;
           }
 
-          openShareWindow(buildXUrl(shareText));
-          setShareMessage("この端末では共有に対応していません。投稿画面でスクリーンショットを添付してください。");
+          const file = await captureShareAsset();
+          downloadFile(file);
+          await tryCopyText(shareText);
+          setFallbackShare({ platform: "x", shareText, savedFileName: file.name });
           return;
         }
 
@@ -127,8 +130,10 @@ export function HomeView() {
             return;
           }
 
-          openShareWindow(buildFacebookUrl(shareText));
-          setShareMessage("Facebookのシェア画面を開きました。必要に応じてスクリーンショットを添付してください。");
+          const file = await captureShareAsset();
+          downloadFile(file);
+          await tryCopyText(shareText);
+          setFallbackShare({ platform: "facebook", shareText, savedFileName: file.name });
           return;
         }
 
@@ -139,8 +144,10 @@ export function HomeView() {
             return;
           }
 
+          const file = await captureShareAsset();
+          downloadFile(file);
           await tryCopyText(shareText);
-          setShareMessage("この端末では共有に対応していません。ホーム画面をスクリーンショットして Instagram に投稿してください。");
+          setFallbackShare({ platform: "instagram", shareText, savedFileName: file.name });
           return;
         }
       } catch (error) {
@@ -150,7 +157,7 @@ export function HomeView() {
         setIsSharing(false);
       }
     },
-    [isSharing, metrics, shareViaSystem],
+    [captureShareAsset, isSharing, metrics, shareViaSystem],
   );
 
   return (
@@ -192,11 +199,28 @@ export function HomeView() {
           {tip ? <TipCard tip={tip} onDismiss={() => setTip(null)} /> : null}
         </div>
       </main>
+      {fallbackShare ? (
+        <ShareFallbackDialog
+          platform={fallbackShare.platform}
+          savedFileName={fallbackShare.savedFileName}
+          onClose={() => setFallbackShare(null)}
+          onContinue={() => {
+            if (fallbackShare.platform === "x") {
+              openShareWindow(buildXUrl(fallbackShare.shareText));
+            } else if (fallbackShare.platform === "facebook") {
+              openShareWindow(buildFacebookUrl(fallbackShare.shareText));
+            }
+            setFallbackShare(null);
+          }}
+        />
+      ) : null}
     </PageContainer>
   );
 }
 
-const APP_URL = "https://temperance.app/download";
+type FallbackState = { platform: SharePlatform; shareText: string; savedFileName?: string };
+
+const APP_URL = "https://temperance-six.vercel.app";
 
 function buildShareText(metrics: ReturnType<typeof computeGoalMetrics>) {
   const today = formatCurrency(metrics.today);
@@ -234,6 +258,15 @@ async function tryCopyText(text: string) {
   }
 }
 
+function downloadFile(file: File) {
+  const url = URL.createObjectURL(file);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = file.name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 type SharePlatform = "x" | "facebook" | "instagram";
 
 function QrShareCard({ onDismiss }: { onDismiss: () => void }) {
@@ -249,7 +282,7 @@ function QrShareCard({ onDismiss }: { onDismiss: () => void }) {
       <div className="flex items-center gap-4">
         <div className="flex-1">
           <p className="text-sm text-zinc-600">
-            別のスマホのカメラで読み取ると Temperance をすぐ開けます。ホーム画面追加やダウンロード案内に使ってください。
+            別のスマホのカメラで読み取ると Temperance の紹介ページ（{displayUrl}）に飛び、そこからアクセスできます。
           </p>
           <a
             href={APP_URL}
@@ -424,6 +457,83 @@ function ShareIcon({ className }: { className?: string }) {
       <path d="m8.6 11 6.8-4" />
       <path d="m8.6 13 6.8 4" />
     </svg>
+  );
+}
+
+const fallbackContent: Record<SharePlatform, { title: string; body: (fileName?: string) => string[]; actionLabel?: string }> = {
+  x: {
+    title: "Xにポストする手順",
+    body: (fileName) => [
+      "お使いのブラウザでは画像の自動添付に対応していません。",
+      `1. ホーム画面の画像を自動保存しました（${fileName ?? "temperance-home.png"}）`,
+      "2. 共有テキストをコピー済みです", 
+      "3. Xアプリで新規ポスト → 画像を添付してテキストを貼り付けます",
+    ],
+    actionLabel: "Xの投稿画面を開く",
+  },
+  instagram: {
+    title: "Instagramにシェア",
+    body: (fileName) => [
+      "ブラウザからInstagramアプリへ直接画像を送ることができません。",
+      `1. ホーム画面の画像を自動保存しました（${fileName ?? "temperance-home.png"}）`,
+      "2. 共有テキストをコピー済みです",
+      "3. Instagramアプリで新規投稿 → 画像を選び、本文にテキストを貼り付けます",
+    ],
+  },
+  facebook: {
+    title: "Facebookにシェア",
+    body: (fileName) => [
+      "ブラウザの共有に対応していないため、Facebookの投稿画面を開きます。",
+      `1. ホーム画面の画像を自動保存しました（${fileName ?? "temperance-home.png"}）`,
+      "2. 共有テキストをコピー済みです",
+      "3. Facebookの投稿画面で画像を選び、テキストを貼り付けてください",
+    ],
+    actionLabel: "Facebookの投稿画面を開く",
+  },
+};
+
+function ShareFallbackDialog({
+  platform,
+  savedFileName,
+  onClose,
+  onContinue,
+}: {
+  platform: SharePlatform;
+  savedFileName?: string;
+  onClose: () => void;
+  onContinue: () => void;
+}) {
+  const content = fallbackContent[platform];
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
+      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+        <p className="text-xs font-semibold text-emerald-500">共有ヒント</p>
+        <h3 className="mt-2 text-lg font-semibold">{content.title}</h3>
+        <div className="mt-3 space-y-2 text-sm text-zinc-600">
+          {content.body(savedFileName).map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
+        <div className="mt-5 flex flex-col gap-2">
+          {content.actionLabel ? (
+            <button
+              type="button"
+              onClick={onContinue}
+              className="w-full rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
+            >
+              {content.actionLabel}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full rounded-2xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700"
+          >
+            とじる
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
